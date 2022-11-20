@@ -23,7 +23,7 @@ passport.use(
 const verifyUser = async (username, password) => {
   console.log("Getting user collection...");
   await mongoose.connect(
-    "mongodb+srv://admin:admin@cluster0.a2udqxz.mongodb.net/?retryWrites=true&w=majority"
+    "mongodb+srv://admin:admin@cluster0.a2udqxz.mongodb.net/internet_sec_project?retryWrites=true&w=majority"
   );
 
   const dbUser = await User.find({ username: username });
@@ -44,7 +44,7 @@ const verifyUser = async (username, password) => {
   console.log("verify password", dbUser[0].password, hashedPassword);
   return {
     success: dbUser[0].password == hashedPassword,
-    user: { username: dbUser[0].username },
+    user: { username: dbUser[0].username, displayName: dbUser[0].username },
   };
 };
 

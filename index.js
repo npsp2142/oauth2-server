@@ -4,16 +4,24 @@ const env = require("dotenv").config();
 const auth = require("./auth");
 const passport = require("passport");
 const cors = require("cors");
+const mongoose = require("mongoose");
+const User = require("./User");
+
 const { authenticate } = require("passport");
 var bodyParser = require("body-parser");
 const { getUsersCollection } = require("./User");
 const { pbkdf2, randomBytes, pbkdf2Sync } = require("node:crypto");
 
+const PASSWORD_HASH_ITERATION = 100000;
+const PASSWORD_HASH_DIGEST = 64;
+
 const app = express();
-app.use(express.static("public"));
-app.use(
-  cors("http://localhost:3000")
-);
+// app.use(express.static("public"));
+var corsOptions = {
+  origin: "http://localhost:3000",
+  credentials: true,
+};
+app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
 app.use(
@@ -29,6 +37,7 @@ app.use(passport.session());
 //functions
 const isLogged = (req, res, next) => {
   // req.user ? next() : res.json({ message: "not authenticated" });
+  console.log("islogged", req.isAuthenticated(), next);
   req.isAuthenticated() ? next() : res.sendStatus(401);
 };
 const path = require("path");
@@ -46,9 +55,9 @@ app.get(
 app.post("/login", passport.authenticate("local"), (req, res) => {
   console.log("login req", req.isAuthenticated());
   if (req.isAuthenticated()) {
-    res.json({ redirect: "/login/success" });
+    res.json({ redirect: "/success" });
     return;
-    }
+  }
   res.json({ redirect: "/login" });
 });
 
@@ -60,31 +69,32 @@ app.post("/register", async (req, res) => {
   console.log("user req body", PASSWORD_HASH_ITERATION);
 
   try {
-    const User = await mongoose.connect(
-      "mongodb+srv://admin:admin@cluster0.a2udqxz.mongodb.net/?retryWrites=true&w=majority"
+    await mongoose.connect(
+      "mongodb+srv://admin:admin@cluster0.a2udqxz.mongodb.net/internet_sec_project?retryWrites=true&w=majority"
     );
     console.log("Generating salt");
-  const salt = randomBytes(256).toString("hex");
+    const salt = randomBytes(256).toString("hex");
 
     console.log("Generating hashed password");
     const PASSWORD_HASH_ITERATION = 100000;
     const PASSWORD_HASH_DIGEST = 64;
-  const hashedPassword = pbkdf2Sync(
-    req.body.password,
-    salt,
-    PASSWORD_HASH_ITERATION,
-    PASSWORD_HASH_DIGEST,
-    "sha512"
-  ).toString("hex");
+    const hashedPassword = pbkdf2Sync(
+      req.body.password,
+      salt,
+      PASSWORD_HASH_ITERATION,
+      PASSWORD_HASH_DIGEST,
+      "sha512"
+    ).toString("hex");
 
-  const newUser = new User({
-    username: req.body.username,
-    password: hashedPassword,
-    salt: salt,
-  });
+    const newUser = new User({
+      username: req.body.username,
+      password: hashedPassword,
+      salt: salt,
+    });
     newUser.save();
     res.json({ success: true, code: 200 });
   } catch (error) {
+    console.error(error);
     res.json({ success: false, code: 500 });
   }
 });
@@ -92,12 +102,12 @@ app.post("/register", async (req, res) => {
 app.get(
   "/auth/google/callback",
   passport.authenticate("google", {
-    successRedirect: "http://localhost:3000/auth/google/success",
-    failureRedirect: "http://localhost:3000/auth/google/failure",
+    successRedirect: "http://localhost:3000/success",
+    failureRedirect: "http://localhost:3000/failure",
   })
 );
 
-app.get("/auth/google/user", isLogged, (req, res) => {
+app.get("/user", isLogged, (req, res) => {
   console.log("user login");
   res.json(req.user);
 });
@@ -110,7 +120,7 @@ app.get("/logout", (req, res) => {
   req.logout();
   req.session = null;
   console.log("user logout");
-  res.redirect("/");
+  res.json({ redirect: "/" });
 });
 
 //Listen
