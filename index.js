@@ -6,13 +6,16 @@ const passport = require("passport");
 const cors = require("cors");
 const { authenticate } = require("passport");
 var bodyParser = require("body-parser");
-const { getUsersCollection } = require("./utils");
+const { getUsersCollection } = require("./User");
 const { pbkdf2, randomBytes, pbkdf2Sync } = require("node:crypto");
-const {PASSWORD_HASH_DIGEST,PASSWORD_HASH_ITERATION} = require('./constants')
 
 const app = express();
+app.use(express.static("public"));
+app.use(
+  cors("http://localhost:3000")
+);
 app.use(bodyParser.json());
-app.use(cors({ origin: "http://localhost:3000", credentials: true }));
+
 app.use(
   cookieSession({
     maxAge: 24 * 60 * 60 * 1000,
@@ -28,6 +31,7 @@ const isLogged = (req, res, next) => {
   // req.user ? next() : res.json({ message: "not authenticated" });
   req.isAuthenticated() ? next() : res.sendStatus(401);
 };
+const path = require("path");
 
 //GET requests
 app.get("/", (req, res) => {
@@ -36,29 +40,16 @@ app.get("/", (req, res) => {
 
 app.get(
   "/auth/google",
-  passport.authenticate(["local", "google"], { scope: ["profile", "email"] })
+  passport.authenticate(["google"], { scope: ["profile", "email"] })
 );
 
-app.post("/login", async (req, res) => {
-  console.log("user req", req);
-  console.log("user req body", req.body);
-  console.log("user req body", JSON.stringify(req.body));
-  const loginResponse = await fetch(
-    "https://internet-sec-proj.azurewebsites.net/api/v1/user/login",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(req.body),
+app.post("/login", passport.authenticate("local"), (req, res) => {
+  console.log("login req", req.isAuthenticated());
+  if (req.isAuthenticated()) {
+    res.json({ redirect: "/login/success" });
+    return;
     }
-  );
-  console.log(loginResponse, loginResponse.url);
-  const json = await loginResponse.json();
-
-  console.log("user login resp", json);
-  console.log("user login resp", JSON.stringify(json));
-  res.json(json);
+  res.json({ redirect: "/login" });
 });
 
 app.post("/register", async (req, res) => {
@@ -68,12 +59,16 @@ app.post("/register", async (req, res) => {
   console.log("user req body", req.body.password);
   console.log("user req body", PASSWORD_HASH_ITERATION);
 
-  const User = await getUsersCollection();
-
-  console.log("Generating salt")
+  try {
+    const User = await mongoose.connect(
+      "mongodb+srv://admin:admin@cluster0.a2udqxz.mongodb.net/?retryWrites=true&w=majority"
+    );
+    console.log("Generating salt");
   const salt = randomBytes(256).toString("hex");
 
-  console.log("Generating hashed password")
+    console.log("Generating hashed password");
+    const PASSWORD_HASH_ITERATION = 100000;
+    const PASSWORD_HASH_DIGEST = 64;
   const hashedPassword = pbkdf2Sync(
     req.body.password,
     salt,
@@ -87,22 +82,11 @@ app.post("/register", async (req, res) => {
     password: hashedPassword,
     salt: salt,
   });
-  newUser.save(); // "Meow name is fluffy"
-
-  // const loginResponse = await fetch("https://internet-sec-proj.azurewebsites.net/api/v1/user/login", {
-  //   method: "POST",
-  //   headers: {
-  //     "Content-Type": "application/json",
-  //   },
-  //   body: JSON.stringify(req.body),
-  // })
-  // console.log(loginResponse,loginResponse.url)
-  // const json = await loginResponse.json();
-
-  // console.log("user login resp", json);
-  // console.log("user login resp", JSON.stringify(json));
-  // res.json(json);
-  res.json({success:true,code:200})
+    newUser.save();
+    res.json({ success: true, code: 200 });
+  } catch (error) {
+    res.json({ success: false, code: 500 });
+  }
 });
 
 app.get(
@@ -122,7 +106,7 @@ app.get("/protected/resource", isLogged, (req, res) => {
   res.send("You get a protected resource");
 });
 
-app.get("/auth/google/logout", (req, res) => {
+app.get("/logout", (req, res) => {
   req.logout();
   req.session = null;
   console.log("user logout");

@@ -1,11 +1,10 @@
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth2").Strategy;
 const mongoose = require("mongoose");
-const crypto = require("crypto");
-const { getUsersCollection } = require("./utils");
+const { pbkdf2Sync } = require("crypto");
+const User = require("./User");
 var LocalStrategy = require("passport-local");
-const {PASSWORD_HASH_DIGEST,PASSWORD_HASH_ITERATION} = require('constants')
-
+const { PASSWORD_HASH_DIGEST, PASSWORD_HASH_ITERATION } = require("constants");
 
 passport.use(
   new GoogleStrategy(
@@ -22,27 +21,38 @@ passport.use(
 );
 
 const verifyUser = async (username, password) => {
-  const User = getUsersCollection();
-  const dbUser = await User.findOne({ username: username });
+  console.log("Getting user collection...");
+  await mongoose.connect(
+    "mongodb+srv://admin:admin@cluster0.a2udqxz.mongodb.net/?retryWrites=true&w=majority"
+  );
+
+  const dbUser = await User.find({ username: username });
+  const PASSWORD_HASH_ITERATION = 100000;
+  const PASSWORD_HASH_DIGEST = 64;
   if (dbUser == null) {
     console.log("user not exists");
-    return false;
+    return { success: false, user: null };
   }
+  console.log("user retrieved, user = ", dbUser);
   const hashedPassword = pbkdf2Sync(
     password,
-    dbUser.salt,
+    dbUser[0].salt,
     PASSWORD_HASH_ITERATION,
     PASSWORD_HASH_DIGEST,
     "sha512"
   ).toString("hex");
-  console.log("verify password", dbUser.password, password);
-  return dbUser.password == hashedPassword, { username: dbUser.username };
+  console.log("verify password", dbUser[0].password, hashedPassword);
+  return {
+    success: dbUser[0].password == hashedPassword,
+    user: { username: dbUser[0].username },
+  };
 };
 
 passport.use(
   new LocalStrategy(function verify(username, password, cb) {
-    verifyUser(username, password).then((result, user) => {
-      if (result) {
+    verifyUser(username, password).then(({success,user}) => {
+      console.log("cb", success, user);
+      if (success) {
         return cb(null, user);
       }
       return cb(null, false, { message: "Incorrect username or password." });
