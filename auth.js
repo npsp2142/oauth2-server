@@ -4,7 +4,6 @@ const mongoose = require("mongoose");
 const { pbkdf2Sync } = require("crypto");
 const User = require("./User");
 var LocalStrategy = require("passport-local");
-const { PASSWORD_HASH_DIGEST, PASSWORD_HASH_ITERATION } = require("constants");
 
 passport.use(
   new GoogleStrategy(
@@ -21,19 +20,18 @@ passport.use(
 );
 
 const verifyUser = async (username, password) => {
-  console.log("Getting user collection...");
-  await mongoose.connect(
-    "mongodb+srv://admin:admin@cluster0.a2udqxz.mongodb.net/internet_sec_project?retryWrites=true&w=majority"
+  console.log(
+    "Getting user collection...",
+    process.env.MONGO_CONNECTION_STRING
   );
+  await mongoose.connect(process.env.MONGO_CONNECTION_STRING);
 
   const dbUser = await User.find({ username: username });
   const PASSWORD_HASH_ITERATION = 100000;
   const PASSWORD_HASH_DIGEST = 64;
-  if (dbUser == null) {
-    console.log("user not exists");
+  if (dbUser == null || dbUser.length <= 0) {
     return { success: false, user: null };
   }
-  console.log("user retrieved, user = ", dbUser);
   const hashedPassword = pbkdf2Sync(
     password,
     dbUser[0].salt,
@@ -41,7 +39,6 @@ const verifyUser = async (username, password) => {
     PASSWORD_HASH_DIGEST,
     "sha512"
   ).toString("hex");
-  console.log("verify password", dbUser[0].password, hashedPassword);
   return {
     success: dbUser[0].password == hashedPassword,
     user: { username: dbUser[0].username, displayName: dbUser[0].username },
@@ -50,8 +47,9 @@ const verifyUser = async (username, password) => {
 
 passport.use(
   new LocalStrategy(function verify(username, password, cb) {
-    verifyUser(username, password).then(({success,user}) => {
+    verifyUser(username, password).then(({ success, user }) => {
       console.log("cb", success, user);
+
       if (success) {
         return cb(null, user);
       }
@@ -61,9 +59,13 @@ passport.use(
 );
 
 passport.serializeUser((user, done) => {
-  done(null, user);
+  process.nextTick(() => {
+    return done(null, user);
+  });
 });
 
 passport.deserializeUser((user, done) => {
-  done(null, user);
+  process.nextTick(() => {
+    return done(null, user);
+  });
 });
