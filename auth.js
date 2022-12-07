@@ -1,5 +1,6 @@
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth2").Strategy;
+const OAuth2Strategy = require("passport-oauth2").Strategy;
 const mongoose = require("mongoose");
 const { pbkdf2Sync } = require("crypto");
 const User = require("./User");
@@ -57,6 +58,29 @@ passport.use(
     });
   })
 );
+
+function parseJwt (token) {
+  const jwtArray = token.split('.');
+  const claimsString = Buffer.from(jwtArray[1], 'base64').toString();
+  return JSON.parse(claimsString);
+}
+
+passport.use(new OAuth2Strategy({
+  authorizationURL: 'http://localhost:8081/realms/master/protocol/openid-connect/auth',
+  tokenURL: 'http://localhost:8081/realms/master/protocol/openid-connect/token',
+  clientID: "comp-internet-sec",
+  clientSecret: "bdeOQGB3n6sQMPPbl0pnQEZUgRNsCDFf",
+  callbackURL: "http://localhost:5000/auth/securityproject/callback"
+},
+function(accessToken, refreshToken, profile, done) {
+  const claims = parseJwt(accessToken);
+  console.log("parseJwt",)
+  return done(null, {
+    username: claims.preferred_username,
+    displayName: claims.preferred_username
+  });
+}
+));
 
 passport.serializeUser((user, done) => {
   process.nextTick(() => {

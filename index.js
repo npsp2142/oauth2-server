@@ -19,13 +19,6 @@ var corsOptions = {
 };
 app.use(cors(corsOptions));
 app.use(bodyParser.json());
-// app.use(
-//   cookieSession({
-//     maxAge: 24 * 60 * 60 * 1000,
-//     name: "session",
-//     keys: ["key"],
-//   })
-// );
 app.use(cookieParser());
 
 app.use(
@@ -33,10 +26,9 @@ app.use(
     secret: "secret",
     resave: true,
     saveUninitialized: true,
-    // cookie: {
-    //   maxAge: 1000 * 60 * 60, // 1 hour
-    //   secure: true,
-    // },
+    cookie: {
+      maxAge: 1000 * 60 * 60, // 1 hour
+    },
     store: MongoStore.create({ mongoUrl: process.env.MONGO_CONNECTION_STRING }),
   })
 );
@@ -44,8 +36,13 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 const isLogged = (req, res, next) => {
-  console.log("islogged", req.isAuthenticated(), next);
-  req.isAuthenticated() ? next() : res.sendStatus(401);
+  console.log("islogged", req.isAuthenticated());
+  if(req.isAuthenticated()){
+    console.log("next")
+    next()
+    return;
+  }
+  res.sendStatus(401)
 };
 
 //GET requests
@@ -134,3 +131,13 @@ app.get("/logout", (req, res) => {
 app.listen(5000, () => {
   console.log("listening port 5000");
 });
+
+app.get("/auth/securityproject", passport.authenticate("oauth2"));
+
+app.get(
+  "/auth/securityproject/callback",
+  passport.authenticate("oauth2", {
+    successRedirect: "http://localhost:3000/success",
+    failureRedirect: "http://localhost:3000/failure",
+  })
+);
