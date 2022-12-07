@@ -66,11 +66,11 @@ function parseJwt (token) {
 }
 
 passport.use(new OAuth2Strategy({
-  authorizationURL: 'http://localhost:8081/realms/master/protocol/openid-connect/auth',
-  tokenURL: 'http://localhost:8081/realms/master/protocol/openid-connect/token',
-  clientID: "comp-internet-sec",
-  clientSecret: "bdeOQGB3n6sQMPPbl0pnQEZUgRNsCDFf",
-  callbackURL: "http://localhost:5000/auth/securityproject/callback"
+  authorizationURL: process.env.KEYCLOAK_AUTHORIZATION_URL,
+  tokenURL: process.env.KEYCLOAK_TOKEN_UTL,
+  clientID: process.env.KEYCLOAK_CLIENT_ID,
+  clientSecret: process.env.KEYCLOAK_CLIENT_SECRET,
+  callbackURL: process.env.KEYCLOAK_CALLBACK_URL,
 },
 function(accessToken, refreshToken, profile, done) {
   const claims = parseJwt(accessToken);
